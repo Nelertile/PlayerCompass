@@ -1,0 +1,21 @@
+{
+  "input-resources": "(automatically selected by Trident-UI)",
+  "output": {
+    "directories": {
+      "data-pack": "D:\\MCProgram\\Trident\\Workspaces\\PlayerCompass\\out\\PlayerCompass",
+      "resource-pack": "D:\\MCProgram\\Trident\\Workspaces\\PlayerCompass\\out\\PlayerCompass-resources.zip"
+    },
+    "clean-directories": {
+      "data-pack": false,
+      "resource-pack": false
+    },
+    "export-comments": true,
+    "export-gamelog": true
+  },
+  "trident-ui": {
+    "actions": {
+      "pre": [],
+      "post": []
+    }
+  }
+}
