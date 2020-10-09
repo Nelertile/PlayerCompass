@@ -1,0 +1,1 @@
+give @p minecraft:compass{tracking_compass: {is_compass: 1b}, display: {Name: '{"text": "Tracking Compass", "color": "aqua", "italic": false}'}}

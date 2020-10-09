@@ -1,0 +1,70 @@
+@ tag load
+
+forceload add -30000000 1499
+setblock -30000000 1 1499 minecraft:yellow_shulker_box{Items:[]}
+scoreboard objectives add tc.data dummy
+
+# takes some items and inserts them into the player's inventory
+# starts at the specified slot
+# eg usage: eval loot_shulker(pointer<tracking_compass:data~inventory>, "inventory.0")
+var loot_shulker = function(items, slot) {
+    set (-30000000 1 1499).Items = ${items}
+    loot replace entity @s ${slot} mine -30000000 1 1499 air{drop_contents: 1b}
+}
+
+function tick {
+    as @a function player {
+        set tracking_compass:data~compasses = []
+        data modify storage tracking_compass:data compasses append from entity @s Inventory[{tag: {tracking_compass: {is_compass: 1b}}}]
+        
+        if data storage tracking_compass:data compasses[0] function update_compasses {
+            function setup_inventory {
+                set tracking_compass:data~offhand = null
+                set tracking_compass:data~hotbar = []
+                set tracking_compass:data~inventory = []
+                set tracking_compass:data~items = @s.Inventory
+                
+                for (var i = 0; i < 9; i++) {
+                    data modify storage tracking_compass:data hotbar append from storage tracking_compass:data items[{Slot: ${i as tag_byte}}]
+                }
+                for (var i = 9; i < 36; i++) {
+                    data modify storage tracking_compass:data inventory append from storage tracking_compass:data items[{Slot: ${i as tag_byte}}]
+                }
+            }
+            
+            at @s function loop {
+                say ho!
+                set tracking_compass:data~item = tracking_compass:data~compasses[0]
+                set #slot->tc.data = tracking_compass:data~item.Slot
+                
+                set tracking_compass:data~item.tag.LodestoneTracked = 0b
+                set tracking_compass:data~item.tag.LodestoneDimension = @s.Dimension
+                store result storage tracking_compass:data item.tag.LodestonePos.X int 1 data get entity @e[type=pig,sort=nearest,limit=1] Pos[0]
+                store result storage tracking_compass:data item.tag.LodestonePos.Y int 1 data get entity @e[type=pig,sort=nearest,limit=1] Pos[1]
+                store result storage tracking_compass:data item.tag.LodestonePos.Z int 1 data get entity @e[type=pig,sort=nearest,limit=1] Pos[2]
+                
+                if score #slot tc.data matches 0..8 data modify storage tracking_compass:data hotbar append from storage tracking_compass:data item
+                if score #slot tc.data matches -106 function {
+                    set tracking_compass:data~offhand = tracking_compass:data~item
+                    set tracking_compass:data~offhand.Slot = 0b
+                }
+                if score #slot tc.data matches 9..35 function {
+                    set #slot->tc.data -= 9
+                    set tracking_compass:data~item.Slot (byte) = #slot->tc.data
+                    data modify storage tracking_compass:data inventory append from storage tracking_compass:data item
+                }
+                
+                set tracking_compass:data~compasses[0] = null
+                if data storage tracking_compass:data compasses[0] function /
+            }
+            
+            eval loot_shulker(pointer<tracking_compass:data~hotbar>, 'hotbar.0')
+            eval loot_shulker(pointer<tracking_compass:data~inventory>, 'inventory.0')
+            if data storage tracking_compass:data offhand expand {
+                eval loot_shulker(pointer<tracking_compass:data~offhand>, 'weapon.offhand')
+            }
+        }        
+    }
+    
+    schedule function / 5t
+}
