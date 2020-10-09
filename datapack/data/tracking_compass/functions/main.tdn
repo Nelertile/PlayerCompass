@@ -1,8 +1,12 @@
 @ tag load
 
+team add tc.no_collision
+team modify tc.no_collision collisionRule never
+
 forceload add -30000000 1499
 setblock -30000000 1 1499 minecraft:yellow_shulker_box{Items:[]}
 scoreboard objectives add tc.data dummy
+scoreboard objectives add tc.id dummy
 
 # takes some items and inserts them into the player's inventory
 # starts at the specified slot
@@ -16,7 +20,29 @@ var loot_shulker = function(items, slot) {
 
 function tick {
     # for every player...
-    as @a function player {
+    as @a at @s function player {
+        unless score @s tc.data isset function set_id {
+            set #current_id->tc.data += 1
+            set @s->tc.id = #current_id->tc.data
+        }
+        
+        # if this has a villager but has no players next to him, try and kill the villager
+        as @a[tag=!tracking_compass.found_player,tag=tracking_compass.has_villager] function kill_villager {
+            tag @s add tracking_compass.current_player
+            set @s->tc.data += 1
+            set #id->tc.data = @s->tc.id
+            as @e[tag=tracking_compass.villager] if score @s tc.id = #id tc.data tp ~ -5 ~
+            if score @s tc.data matches 3.. function timeout {
+                # resets the timer and marks this player as not having a villager
+                set @s->tc.data = 0
+                tag @s remove tracking_compass.has_villager
+                # villager go bye bye
+                as @e[tag=tracking_compass.villager] if score @s tc.id = #id tc.data kill @s
+            } 
+        }
+        
+        tag @s remove tracking_compass.found_player
+        
         # creates a list of compasses
         set tracking_compass:data~compasses = []
         # sets this list to be all the tracking compasses in the player's inv.
@@ -24,6 +50,33 @@ function tick {
         
         # if there's at least 1 compass, loop thru all of them
         if data storage tracking_compass:data compasses[0] function update_compasses {
+            # searching for players nearby to position a villager so that the player can be interacted with
+            if predicate tracking_compass:has_compass function player_search {
+                tag @s add tracking_compass.current_player
+                as @e[tag=!tracking_compass.current_player, distance=..6.5, sort=nearest, type=pig] function player_found {
+                    # notifies the player that another player was found
+                    as @a[tag=tracking_compass.current_player, limit=1] function {
+                        tag @s add tracking_compass.found_player
+                        set #id->tc.data = @s->tc.id
+                        unless @s[tag=tracking_compass.has_villager] function summon_villager {
+                            summon villager ~ -5 ~ {NoGravity:1b,Silent:1b,Invulnerable:1b,NoAI:1b,Team:tc.no_collision,Tags:["tracking_compass.villager", "tracking_compass.not_processed"],ActiveEffects:[{Id:11b,Amplifier:5b,Duration:600000,ShowParticles:0b},{Id:14b,Amplifier:0b,Duration:600000,ShowParticles:0b}]}
+                            set @e[type=villager,tag=tracking_compass.not_processed]->tc.id = #id->tc.data
+                            tag @e[type=villager] remove tracking_compass.not_processed
+                            tag @s add tracking_compass.has_villager
+                        }
+                    }
+                    
+                    # caches the other player's id to update the villager later
+                    set #other_id->tc.data = @s->tc.id
+                    positioned as @s as @e[tag=tracking_compass.villager] if score @s tc.id = #id tc.data function update_villager {
+                        # updates this villager's id with the found player's
+                        set @s->tc.data = #other_id->tc.data
+                        tp @s ^ ^ ^-1
+                    }
+                }
+                tag @s remove tracking_compass.current_player
+            }
+            
             # setting up the inventory means creating arrays with *all* the items in your inventory, depending on which section of the inventory it is
             # eg. a list of all hotbar items, a list of all inventory items, etc.
             function setup_inventory {
@@ -55,10 +108,16 @@ function tick {
                 # sets the dimension of the compass to match its target
                 # TODO: currently matches the holder's dim; change to target
                 set tracking_compass:data~item.tag.LodestoneDimension = @s.Dimension
+                set #id->tc.data = tracking_compass:data~item.tag.tracking_compass.target
+                as @e[type=pig] if score @s tc.id = #id tc.data tag @s add tracking_compass.tracked
+                
                 # updates the position the compass points to
-                store result storage tracking_compass:data item.tag.LodestonePos.X int 1 data get entity @e[type=pig,sort=nearest,limit=1] Pos[0]
-                store result storage tracking_compass:data item.tag.LodestonePos.Y int 1 data get entity @e[type=pig,sort=nearest,limit=1] Pos[1]
-                store result storage tracking_compass:data item.tag.LodestonePos.Z int 1 data get entity @e[type=pig,sort=nearest,limit=1] Pos[2]
+                as @e[limit=1,tag=tracking_compass.tracked] function update_position {
+                    store result storage tracking_compass:data item.tag.LodestonePos.X int 1 data get entity @s Pos[0]
+                    store result storage tracking_compass:data item.tag.LodestonePos.Y int 1 data get entity @s Pos[1]
+                    store result storage tracking_compass:data item.tag.LodestonePos.Z int 1 data get entity @s Pos[2]
+                    tag @s remove tracking_compass.tracked
+                }
                 
                 # if is in hotbar slots, add item to the hotbar list
                 if score #slot tc.data matches 0..8 data modify storage tracking_compass:data hotbar append from storage tracking_compass:data item

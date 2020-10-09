@@ -1,0 +1,20 @@
+@require tracking_compass:main
+
+set #id->tc.data = @s->tc.id
+as @e[tag=tracking_compass.villager] if score @s tc.id = #id tc.data set #other_id->tc.data = @s->tc.data
+
+set tracking_compass:data~item = @s.SelectedItem
+# sets the compass' tracked id to the other player's id
+set tracking_compass:data~item.tag.tracking_compass.target (int) = #other_id->tc.data
+
+# updates the slot of the item so it fits in the shulker
+# then adds it to a list so it can be placed in the shulker
+set tracking_compass:data~item.Slot = 0b
+set tracking_compass:data~item_list = []
+data modify storage tracking_compass:data item_list append from storage tracking_compass:data item
+tellraw @s {"nbt": "item_list", "storage": "tracking_compass:data"}
+
+# loots the shulker into the player's mainhand
+eval loot_shulker(pointer<tracking_compass:data~item_list>, 'weapon')
+
+advancement revoke @s only tracking_compass:on_player_interacted

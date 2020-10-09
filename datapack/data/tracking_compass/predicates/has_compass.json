@@ -1,0 +1,12 @@
+{
+    "condition": "minecraft:entity_properties",
+    "entity": "this",
+    "predicate": {
+      "equipment": {
+        "mainhand": {
+          "item": "compass",
+          "nbt": "{tracking_compass: {is_compass: 1b}}"
+        }
+      }
+    }
+  }
