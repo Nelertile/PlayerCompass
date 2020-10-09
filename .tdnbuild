@@ -2,8 +2,8 @@
   "input-resources": "(automatically selected by Trident-UI)",
   "output": {
     "directories": {
-      "data-pack": "D:\\MCProgram\\Trident\\Workspaces\\PlayerCompass\\out\\PlayerCompass",
-      "resource-pack": "D:\\MCProgram\\Trident\\Workspaces\\PlayerCompass\\out\\PlayerCompass-resources.zip"
+      "data-pack": "C:\\Users\\edzer\\AppData\\Roaming\\.minecraft\\saves\\VE\\datapacks\\Tracking Compass",
+      "resource-pack": ""
     },
     "clean-directories": {
       "data-pack": false,

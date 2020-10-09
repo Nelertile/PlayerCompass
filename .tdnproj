@@ -4,7 +4,7 @@
     16,
     0
   ],
-  "default-namespace": "pc",
+  "default-namespace": "tracking_compass",
   "language-level": 1,
   "datapack-output": "D:\\MCProgram\\Trident\\Workspaces\\PlayerCompass\\out\\PlayerCompass",
   "resources-output": "D:\\MCProgram\\Trident\\Workspaces\\PlayerCompass\\out\\PlayerCompass-resources.zip",
@@ -19,7 +19,7 @@
   "game-logger": {
     "compact": false,
     "timestamp-enabled": true,
-    "line-number-enabled": false,
-    "pos-enabled": true
+    "pos-enabled": true,
+    "line-number-enabled": false
   }
 }
