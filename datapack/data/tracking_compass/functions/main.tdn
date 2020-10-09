@@ -8,63 +8,90 @@ scoreboard objectives add tc.data dummy
 # starts at the specified slot
 # eg usage: eval loot_shulker(pointer<tracking_compass:data~inventory>, "inventory.0")
 var loot_shulker = function(items, slot) {
+    # sets the contents of the shulker box to the items in the nbt pointer passed
     set (-30000000 1 1499).Items = ${items}
+    # inserts the items in the shulker into the player's inventory, at the slot specified
     loot replace entity @s ${slot} mine -30000000 1 1499 air{drop_contents: 1b}
 }
 
 function tick {
+    # for every player...
     as @a function player {
+        # creates a list of compasses
         set tracking_compass:data~compasses = []
+        # sets this list to be all the tracking compasses in the player's inv.
         data modify storage tracking_compass:data compasses append from entity @s Inventory[{tag: {tracking_compass: {is_compass: 1b}}}]
         
+        # if there's at least 1 compass, loop thru all of them
         if data storage tracking_compass:data compasses[0] function update_compasses {
+            # setting up the inventory means creating arrays with *all* the items in your inventory, depending on which section of the inventory it is
+            # eg. a list of all hotbar items, a list of all inventory items, etc.
             function setup_inventory {
+                set tracking_compass:data~item = null
                 set tracking_compass:data~offhand = null
                 set tracking_compass:data~hotbar = []
                 set tracking_compass:data~inventory = []
                 set tracking_compass:data~items = @s.Inventory
                 
+                # loops thru each slot in the hotbar and appends its item to the hotbar list
                 for (var i = 0; i < 9; i++) {
                     data modify storage tracking_compass:data hotbar append from storage tracking_compass:data items[{Slot: ${i as tag_byte}}]
                 }
+                # same for inventory, except we need to decrease the slot by 9 so it fits in the shulker box
                 for (var i = 9; i < 36; i++) {
-                    data modify storage tracking_compass:data inventory append from storage tracking_compass:data items[{Slot: ${i as tag_byte}}]
+                    store success score #slot_full tc.data set tracking_compass:data~item = tracking_compass:data~items[{Slot: ${i as tag_byte}}]
+                    if score #slot_full tc.data matches 1 function {
+                        set tracking_compass:data~item.Slot = ${i - 9}
+                        data modify storage tracking_compass:data inventory append from storage tracking_compass:data item
+                    }
                 }
             }
             
+            # recurrent function; loops thru every compass
             at @s function loop {
-                say ho!
                 set tracking_compass:data~item = tracking_compass:data~compasses[0]
                 set #slot->tc.data = tracking_compass:data~item.Slot
                 
-                set tracking_compass:data~item.tag.LodestoneTracked = 0b
+                # sets the dimension of the compass to match its target
+                # TODO: currently matches the holder's dim; change to target
                 set tracking_compass:data~item.tag.LodestoneDimension = @s.Dimension
+                # updates the position the compass points to
                 store result storage tracking_compass:data item.tag.LodestonePos.X int 1 data get entity @e[type=pig,sort=nearest,limit=1] Pos[0]
                 store result storage tracking_compass:data item.tag.LodestonePos.Y int 1 data get entity @e[type=pig,sort=nearest,limit=1] Pos[1]
                 store result storage tracking_compass:data item.tag.LodestonePos.Z int 1 data get entity @e[type=pig,sort=nearest,limit=1] Pos[2]
                 
+                # if is in hotbar slots, add item to the hotbar list
                 if score #slot tc.data matches 0..8 data modify storage tracking_compass:data hotbar append from storage tracking_compass:data item
+                # if is in the offhand slot, set as the offhand item
                 if score #slot tc.data matches -106 function {
                     set tracking_compass:data~offhand = tracking_compass:data~item
                     set tracking_compass:data~offhand.Slot = 0b
                 }
+                # if is in inventory slots, append to the inventory list
+                # decreases slot num by 9 so it fits in the shulker later
                 if score #slot tc.data matches 9..35 function {
                     set #slot->tc.data -= 9
                     set tracking_compass:data~item.Slot (byte) = #slot->tc.data
                     data modify storage tracking_compass:data inventory append from storage tracking_compass:data item
                 }
-                
+                # Important: removes the first compass item from the list
+                # this is what makes the loop work
                 set tracking_compass:data~compasses[0] = null
+                # if there still are compasses, continue looping
                 if data storage tracking_compass:data compasses[0] function /
             }
             
+            # loots the shulker for each section of the inventory accordingly
             eval loot_shulker(pointer<tracking_compass:data~hotbar>, 'hotbar.0')
             eval loot_shulker(pointer<tracking_compass:data~inventory>, 'inventory.0')
             if data storage tracking_compass:data offhand expand {
-                eval loot_shulker(pointer<tracking_compass:data~offhand>, 'weapon.offhand')
+                # won't loot the offhand if there's no offhand item
+                set tracking_compass:data~offhand_list = []
+                data modify storage tracking_compass:data offhand_list append from storage tracking_compass:data offhand
+                eval loot_shulker(pointer<tracking_compass:data~offhand_list>, 'weapon.offhand')
             }
         }        
     }
     
-    schedule function / 5t
+    schedule function / 10
 }
