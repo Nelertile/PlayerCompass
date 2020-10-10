@@ -1,0 +1,13 @@
+{
+  "criteria": {
+    "requirement": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": {
+        "recipe": "tracking_compass:tracking_compass"
+      }
+    }
+  },
+  "rewards": {
+    "function": "tracking_compass:compass_crafted"
+  }
+}
