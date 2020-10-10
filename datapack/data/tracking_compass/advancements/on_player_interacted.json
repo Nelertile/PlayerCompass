@@ -1,0 +1,28 @@
+{
+  "criteria": {
+    "requirement": {
+      "trigger": "minecraft:player_interacted_with_entity",
+      "conditions": {
+        "player": [
+            {
+                "condition": "minecraft:reference",
+                "name": "tracking_compass:has_compass"
+            }
+        ],
+        "entity": [
+            {
+                "condition": "minecraft:entity_properties",
+                "entity": "this",
+                "predicate": {
+                    "type": "villager",
+                    "nbt": "{Tags: [\"tracking_compass.villager\"]}"
+                }
+            }
+        ]
+      }
+    }
+  },
+  "rewards": {
+      "function": "tracking_compass:player_selected"
+  }
+}
