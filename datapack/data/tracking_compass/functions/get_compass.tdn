@@ -1,1 +1,1 @@
-give @p minecraft:compass{tracking_compass: {is_compass: 1b}, LodestoneTracked: 0b, display: {Name: '{"text": "Tracking Compass", "color": "aqua", "italic": false}'}}
+give @s minecraft:compass{tracking_compass: {is_compass: 1b}, LodestoneTracked: 0b, display: {Name: '{"text": "Tracking Compass", "italic": false}', Lore: ['{"text": "Right-click on a player to track it", "color": "gray", "italic": false}']}}

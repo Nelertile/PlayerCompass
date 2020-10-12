@@ -1,0 +1,6 @@
+function tracking_compass:get_compass
+
+schedule function tracking_compass:kill_books 1
+recipe take @s tracking_compass:tracking_compass
+recipe take @s tracking_compass:tracking_compass_1
+advancement revoke @s only tracking_compass:on_compass_crafted

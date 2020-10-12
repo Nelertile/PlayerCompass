@@ -5,12 +5,14 @@ team modify tc.no_collision collisionRule never
 
 forceload add -30000000 1499
 setblock -30000000 1 1499 minecraft:yellow_shulker_box{Items:[]}
+setblock -30000000 0 1499 minecraft:oak_wall_sign
+
 scoreboard objectives add tc.data dummy
 scoreboard objectives add tc.id dummy
 
 # takes some items and inserts them into the player's inventory
 # starts at the specified slot
-# eg usage: eval loot_shulker(pointer<tracking_compass:data~inventory>, "inventory.0")
+# eg usage: eval loot_shulker(pointer<tracking_compass:data~Root.inventory>, "inventory.0")
 var loot_shulker = function(items, slot) {
     # sets the contents of the shulker box to the items in the nbt pointer passed
     set (-30000000 1 1499).Items = ${items}
@@ -18,14 +20,8 @@ var loot_shulker = function(items, slot) {
     loot replace entity @s ${slot} mine -30000000 1 1499 air{drop_contents: 1b}
 }
 
-function tick {
-    # for every player...
+function tick_2 {
     as @a at @s function player {
-        unless score @s tc.data isset function set_id {
-            set #current_id->tc.data += 1
-            set @s->tc.id = #current_id->tc.data
-        }
-        
         # if this has a villager but has no players next to him, try and kill the villager
         as @a[tag=!tracking_compass.found_player,tag=tracking_compass.has_villager] function kill_villager {
             tag @s add tracking_compass.current_player
@@ -43,114 +39,147 @@ function tick {
         
         tag @s remove tracking_compass.found_player
         
-        # creates a list of compasses
-        set tracking_compass:data~compasses = []
-        # sets this list to be all the tracking compasses in the player's inv.
-        data modify storage tracking_compass:data compasses append from entity @s Inventory[{tag: {tracking_compass: {is_compass: 1b}}}]
-        
-        # if there's at least 1 compass, loop thru all of them
-        if data storage tracking_compass:data compasses[0] function update_compasses {
-            # searching for players nearby to position a villager so that the player can be interacted with
-            if predicate tracking_compass:has_compass function player_search {
-                tag @s add tracking_compass.current_player
-                as @e[tag=!tracking_compass.current_player, distance=..6.5, sort=nearest, type=pig] function player_found {
-                    # notifies the player that another player was found
-                    as @a[tag=tracking_compass.current_player, limit=1] function {
-                        tag @s add tracking_compass.found_player
-                        set #id->tc.data = @s->tc.id
-                        unless @s[tag=tracking_compass.has_villager] function summon_villager {
-                            summon villager ~ -5 ~ {NoGravity:1b,Silent:1b,Invulnerable:1b,NoAI:1b,Team:tc.no_collision,Tags:["tracking_compass.villager", "tracking_compass.not_processed"],ActiveEffects:[{Id:11b,Amplifier:5b,Duration:600000,ShowParticles:0b},{Id:14b,Amplifier:0b,Duration:600000,ShowParticles:0b}]}
-                            set @e[type=villager,tag=tracking_compass.not_processed]->tc.id = #id->tc.data
-                            tag @e[type=villager] remove tracking_compass.not_processed
-                            tag @s add tracking_compass.has_villager
-                        }
-                    }
-                    
-                    # caches the other player's id to update the villager later
-                    set #other_id->tc.data = @s->tc.id
-                    positioned as @s as @e[tag=tracking_compass.villager] if score @s tc.id = #id tc.data function update_villager {
-                        # updates this villager's id with the found player's
-                        set @s->tc.data = #other_id->tc.data
-                        tp @s ^ ^ ^-1
+        # for every player that's holding a tracking compass...
+        if predicate tracking_compass:has_compass function player_search {
+            # tags the player so they can be found later
+            tag @s add tracking_compass.current_player
+            set #other_id->tc.data = @s.SelectedItem.tag.tracking_compass.target
+            # TODO: pig
+            positioned ^ ^ ^1 as @e[type=#tracking_compass:trackable, tag=tracking_compass.has_id, tag=!tracking_compass.current_player, distance=..6] unless score @s tc.id = #other_id tc.data tag @s add tracking_compass.candidate
+            as @e[type=#tracking_compass:trackable, tag=tracking_compass.candidate, sort=nearest, limit=1] function player_found {
+                # notifies the player that another player was found
+                as @a[tag=tracking_compass.current_player, limit=1] function {
+                    tag @s add tracking_compass.found_player
+                    set #id->tc.data = @s->tc.id
+                    unless @s[tag=tracking_compass.has_villager] function summon_villager {
+                        summon villager ~ -5 ~ {NoGravity:1b,Silent:1b,Invulnerable:1b,NoAI:1b,Team:tc.no_collision,Tags:["tracking_compass.villager", "tracking_compass.not_processed"],ActiveEffects:[{Id:11b,Amplifier:5b,Duration:600000,ShowParticles:0b},{Id:14b,Amplifier:0b,Duration:600000,ShowParticles:0b}]}
+                        set @e[type=villager,tag=tracking_compass.not_processed]->tc.id = #id->tc.data
+                        tag @e[type=villager] remove tracking_compass.not_processed
+                        tag @s add tracking_compass.has_villager
                     }
                 }
-                tag @s remove tracking_compass.current_player
+                
+                # caches the other player's id to update the villager later
+                set #other_id->tc.data = @s->tc.id
+                positioned as @s as @e[tag=tracking_compass.villager] if score @s tc.id = #id tc.data function update_villager {
+                    # updates this villager's id with the found player's
+                    set @s->tc.data = #other_id->tc.data
+                    facing entity @a[tag=tracking_compass.current_player, limit=1] tp ^ ^-0.2 ^0.8
+                }
             }
+            tag @s remove tracking_compass.current_player
+            tag @e remove tracking_compass.candidate
+        }
+    }
+    
+    schedule function / 2
+}
+
+function tick {
+    as @a[tag=!tracking_compass.has_id] function set_id {
+        set #current_id->tc.data += 1
+        set @s->tc.id = #current_id->tc.data
+        tag @s add tracking_compass.has_id
+    }
+    as @e[type=#tracking_compass:trackable, tag=!tracking_compass.has_id] if data entity @s CustomName function /set_id
+    
+    
+    # for every player...
+    as @a at @s function player {
+        
+        # creates a list of compasses
+        set tracking_compass:data~Root.compasses = []
+        # sets this list to be all the tracking compasses in the player's inv.
+        data modify storage tracking_compass:data Root.compasses append from entity @s Inventory[{tag: {tracking_compass: {is_compass: 1b}}}]
+        
+        # if there's at least 1 compass, loop thru all of them
+        if data storage tracking_compass:data Root.compasses[0].tag.tracking_compass.target function update_compasses {
+            # searching for players nearby to position a villager so that the player can be interacted with
             
             # setting up the inventory means creating arrays with *all* the items in your inventory, depending on which section of the inventory it is
             # eg. a list of all hotbar items, a list of all inventory items, etc.
             function setup_inventory {
-                set tracking_compass:data~item = null
-                set tracking_compass:data~offhand = null
-                set tracking_compass:data~hotbar = []
-                set tracking_compass:data~inventory = []
-                set tracking_compass:data~items = @s.Inventory
+                set tracking_compass:data~Root.item = null
+                set tracking_compass:data~Root.offhand = null
+                set tracking_compass:data~Root.hotbar = []
+                set tracking_compass:data~Root.inventory = []
+                set tracking_compass:data~Root.items = @s.Inventory
                 
                 # loops thru each slot in the hotbar and appends its item to the hotbar list
                 for (var i = 0; i < 9; i++) {
-                    data modify storage tracking_compass:data hotbar append from storage tracking_compass:data items[{Slot: ${i as tag_byte}}]
+                    data modify storage tracking_compass:data Root.hotbar append from storage tracking_compass:data Root.items[{Slot: ${i as tag_byte}}]
                 }
                 # same for inventory, except we need to decrease the slot by 9 so it fits in the shulker box
                 for (var i = 9; i < 36; i++) {
-                    store success score #slot_full tc.data set tracking_compass:data~item = tracking_compass:data~items[{Slot: ${i as tag_byte}}]
+                    store success score #slot_full tc.data set tracking_compass:data~Root.item = tracking_compass:data~Root.items[{Slot: ${i as tag_byte}}]
                     if score #slot_full tc.data matches 1 function {
-                        set tracking_compass:data~item.Slot = ${i - 9}
-                        data modify storage tracking_compass:data inventory append from storage tracking_compass:data item
+                        set tracking_compass:data~Root.item.Slot = ${i - 9}
+                        data modify storage tracking_compass:data Root.inventory append from storage tracking_compass:data Root.item
                     }
                 }
             }
             
             # recurrent function; loops thru every compass
             at @s function loop {
-                set tracking_compass:data~item = tracking_compass:data~compasses[0]
-                set #slot->tc.data = tracking_compass:data~item.Slot
+                set tracking_compass:data~Root.item = tracking_compass:data~Root.compasses[0]
+                set #slot->tc.data = tracking_compass:data~Root.item.Slot
                 
+                set #id->tc.data = tracking_compass:data~Root.item.tag.tracking_compass.target
                 # sets the dimension of the compass to match its target
-                # TODO: currently matches the holder's dim; change to target
-                set tracking_compass:data~item.tag.LodestoneDimension = @s.Dimension
-                set #id->tc.data = tracking_compass:data~item.tag.tracking_compass.target
-                as @e[type=pig] if score @s tc.id = #id tc.data tag @s add tracking_compass.tracked
-                
-                # updates the position the compass points to
-                as @e[limit=1,tag=tracking_compass.tracked] function update_position {
-                    store result storage tracking_compass:data item.tag.LodestonePos.X int 1 data get entity @s Pos[0]
-                    store result storage tracking_compass:data item.tag.LodestonePos.Y int 1 data get entity @s Pos[1]
-                    store result storage tracking_compass:data item.tag.LodestonePos.Z int 1 data get entity @s Pos[2]
-                    tag @s remove tracking_compass.tracked
+                # TODO: pig
+                set #found->tc.data = 0
+                as @e[type=#tracking_compass:trackable] if score @s tc.id = #id tc.data function found_tracked {
+                    set #found->tc.data = 1
+                    at @s set tracking_compass:data~Root.item.tag.LodestoneDimension = @p.Dimension
+                    store result storage tracking_compass:data Root.item.tag.LodestonePos.X int 1 data get entity @s Pos[0]
+                    store result storage tracking_compass:data Root.item.tag.LodestonePos.Y int 1 data get entity @s Pos[1]
+                    store result storage tracking_compass:data Root.item.tag.LodestonePos.Z int 1 data get entity @s Pos[2]
                 }
                 
+                function update_lore {
+                    set #lore->tc.data = tracking_compass:data~Root.item.tag.display.Lore
+                    if score #found tc.data matches 0 if score #lore tc.data matches 1 data modify storage tracking_compass:data Root.item.tag.display.Lore append value '{"text": "Target is away", "color": "dark_gray", "italic": false}'
+                    if score #found tc.data matches 1 if score #lore tc.data matches 2.. set tracking_compass:data~Root.item.tag.display.Lore[-1] = null
+                }
+                
+                tag @e remove tracking_compass.tracked
+                
                 # if is in hotbar slots, add item to the hotbar list
-                if score #slot tc.data matches 0..8 data modify storage tracking_compass:data hotbar append from storage tracking_compass:data item
+                if score #slot tc.data matches 0..8 data modify storage tracking_compass:data Root.hotbar append from storage tracking_compass:data Root.item
                 # if is in the offhand slot, set as the offhand item
                 if score #slot tc.data matches -106 function {
-                    set tracking_compass:data~offhand = tracking_compass:data~item
-                    set tracking_compass:data~offhand.Slot = 0b
+                    set tracking_compass:data~Root.offhand = tracking_compass:data~Root.item
+                    set tracking_compass:data~Root.offhand.Slot = 0b
                 }
                 # if is in inventory slots, append to the inventory list
                 # decreases slot num by 9 so it fits in the shulker later
                 if score #slot tc.data matches 9..35 function {
                     set #slot->tc.data -= 9
-                    set tracking_compass:data~item.Slot (byte) = #slot->tc.data
-                    data modify storage tracking_compass:data inventory append from storage tracking_compass:data item
+                    set tracking_compass:data~Root.item.Slot (byte) = #slot->tc.data
+                    data modify storage tracking_compass:data Root.inventory append from storage tracking_compass:data Root.item
                 }
                 # Important: removes the first compass item from the list
                 # this is what makes the loop work
-                set tracking_compass:data~compasses[0] = null
+                set tracking_compass:data~Root.compasses[0] = null
                 # if there still are compasses, continue looping
-                if data storage tracking_compass:data compasses[0] function /
+                if data storage tracking_compass:data Root.compasses[0] function /
             }
             
             # loots the shulker for each section of the inventory accordingly
-            eval loot_shulker(pointer<tracking_compass:data~hotbar>, 'hotbar.0')
-            eval loot_shulker(pointer<tracking_compass:data~inventory>, 'inventory.0')
-            if data storage tracking_compass:data offhand expand {
+            eval loot_shulker(pointer<tracking_compass:data~Root.hotbar>, 'hotbar.0')
+            eval loot_shulker(pointer<tracking_compass:data~Root.inventory>, 'inventory.0')
+            if data storage tracking_compass:data Root.offhand expand {
                 # won't loot the offhand if there's no offhand item
-                set tracking_compass:data~offhand_list = []
-                data modify storage tracking_compass:data offhand_list append from storage tracking_compass:data offhand
-                eval loot_shulker(pointer<tracking_compass:data~offhand_list>, 'weapon.offhand')
+                set tracking_compass:data~Root.offhand_list = []
+                data modify storage tracking_compass:data Root.offhand_list append from storage tracking_compass:data Root.offhand
+                eval loot_shulker(pointer<tracking_compass:data~Root.offhand_list>, 'weapon.offhand')
             }
         }        
     }
     
+    function tracking_compass:kill_books
+    
     schedule function / 10
 }
+
+tellraw @a [{"text":"\n                                                                          \n","color":"gold","strikethrough":true},{"text":"  Tracking Compass ","color":"green","bold":true,"strikethrough":false,"hoverEvent":{"action":"show_text","contents":[{"text":"by a_soulspark"}]}},{"text":"was loaded successfully","color":"white","strikethrough":false},{"text":"\n                                                                          ","strikethrough":true}]

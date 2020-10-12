@@ -1,0 +1,21 @@
+{
+    "display": {
+        "title": "Tracking Compass               ",
+        "description": [
+            [{"text":"Adds tracking compasses that point towards a ","color":"white"},{"text":"player, pet or mount!","color":"gold"},{"text":"\n"}],
+            [{"text":"Crafted with a compass, 2 gold ingots and 2 netherite scrap."}],
+            [{"text":"\nIn order to track a pet/mount, it must be name-tagged."}]
+        ],
+        "icon": {
+            "item": "compass"
+        },
+        "announce_to_chat": false,
+        "show_toast": false
+    },
+    "parent": "global:a_soulspark",
+    "criteria": {
+        "trigger": {
+            "trigger": "minecraft:tick"
+        }
+    }
+}

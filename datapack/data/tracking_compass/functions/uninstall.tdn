@@ -1,0 +1,8 @@
+fill -30000000 0 1499 -30000000 1 1499 minecraft:bedrock
+
+data remove storage tracking_compass:data Root
+scoreboard objectives remove tc.data
+scoreboard objectives remove tc.id
+forceload remove -30000000 1499
+team remove tc.no_collision
+tag @e remove tracking_compass.has_id

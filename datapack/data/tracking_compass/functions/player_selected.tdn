@@ -2,19 +2,50 @@
 
 set #id->tc.data = @s->tc.id
 as @e[tag=tracking_compass.villager] if score @s tc.id = #id tc.data set #other_id->tc.data = @s->tc.data
+as @e[type=#tracking_compass:trackable, tag=!tracking_compass.villager] if score @s tc.id = #other_id tc.data tag @s add tracking_compass.selection
+# TODO: pig
 
-set tracking_compass:data~item = @s.SelectedItem
+set tracking_compass:data~Root.item = @s.SelectedItem
 # sets the compass' tracked id to the other player's id
-set tracking_compass:data~item.tag.tracking_compass.target (int) = #other_id->tc.data
+set tracking_compass:data~Root.item.tag.tracking_compass.target (int) = #other_id->tc.data
+
+# TODO: pig
+set (-30000000 0 1499).Text1 = '[{"text": "Tracking Compass (", "italic": false, "color": "white"}, {"selector": "@e[type=#tracking_compass:trackable, tag=tracking_compass.selection, limit=1]", "color": "gold"}, {"text": ")"}]'
+set tracking_compass:data~Root.item.tag.tracking_compass.target (int) = #other_id->tc.data
+set tracking_compass:data~Root.item.tag.display.Name = (-30000000 0 1499).Text1
+
+set tracking_compass:data~Root.lore = []
+data modify storage tracking_compass:data Root.lore append from storage tracking_compass:data Root.item.tag.display.Lore[0]
+set tracking_compass:data~Root.item.tag.display.Lore = tracking_compass:data~Root.lore
+
+# TODO: pig
+tag @e remove tracking_compass.selection
 
 # updates the slot of the item so it fits in the shulker
 # then adds it to a list so it can be placed in the shulker
-set tracking_compass:data~item.Slot = 0b
-set tracking_compass:data~item_list = []
-data modify storage tracking_compass:data item_list append from storage tracking_compass:data item
-tellraw @s {"nbt": "item_list", "storage": "tracking_compass:data"}
+set tracking_compass:data~Root.item_list = []
+set tracking_compass:data~Root.item.Slot = 0b
+data modify storage tracking_compass:data Root.item_list append from storage tracking_compass:data Root.item
+
+# method for adding a slot to the items list
+# fixes the bug that deletes armor and offhand items when tracking a mob
+var add_slot = function(slot_id, key, shulker_slot) {
+    var item_pointer = pointer<tracking_compass:data~Root>
+    eval item_pointer.member = new nbt_path("Root." + key, null)
+    /${"data remove storage tracking_compass:data Root." + key}
+    /${"data modify storage tracking_compass:data Root." + key + " set from entity @s Inventory[{Slot: " + slot_id + "}]"}
+    /${"data modify storage tracking_compass:data Root." + key + ".Slot set value " + shulker_slot as tag_byte}
+    /${"data modify storage tracking_compass:data Root.item_list append from storage tracking_compass:data Root." + key}
+}
+
+eval add_slot((-106) as tag_byte, "offhand", 1 as tag_byte)
+eval add_slot((100) as tag_byte, "armor", 2 as tag_byte)
+eval add_slot((101) as tag_byte, "armor", 3 as tag_byte)
+eval add_slot((102) as tag_byte, "armor", 4 as tag_byte)
+eval add_slot((103) as tag_byte, "armor", 5 as tag_byte)
 
 # loots the shulker into the player's mainhand
-eval loot_shulker(pointer<tracking_compass:data~item_list>, 'weapon')
+eval loot_shulker(pointer<tracking_compass:data~Root.item_list>, 'weapon.mainhand')
 
+playsound minecraft:item.lodestone_compass.lock player @s
 advancement revoke @s only tracking_compass:on_player_interacted
