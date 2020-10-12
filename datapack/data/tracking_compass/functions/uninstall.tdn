@@ -5,3 +5,4 @@ scoreboard objectives remove tc.data
 scoreboard objectives remove tc.id
 forceload remove -30000000 1499
 team remove tc.no_collision
+tag @e remove tracking_compass.has_id

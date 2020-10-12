@@ -43,8 +43,10 @@ function tick_2 {
         if predicate tracking_compass:has_compass function player_search {
             # tags the player so they can be found later
             tag @s add tracking_compass.current_player
+            set #other_id->tc.data = @s.SelectedItem.tag.tracking_compass.target
             # TODO: pig
-            as @p[tag=!tracking_compass.current_player, distance=..6.5] function player_found {
+            positioned ^ ^ ^1 as @e[type=#tracking_compass:trackable, tag=tracking_compass.has_id, tag=!tracking_compass.current_player, distance=..6] unless score @s tc.id = #other_id tc.data tag @s add tracking_compass.candidate
+            as @e[type=#tracking_compass:trackable, tag=tracking_compass.candidate, sort=nearest, limit=1] function player_found {
                 # notifies the player that another player was found
                 as @a[tag=tracking_compass.current_player, limit=1] function {
                     tag @s add tracking_compass.found_player
@@ -62,10 +64,11 @@ function tick_2 {
                 positioned as @s as @e[tag=tracking_compass.villager] if score @s tc.id = #id tc.data function update_villager {
                     # updates this villager's id with the found player's
                     set @s->tc.data = #other_id->tc.data
-                    facing entity @a[tag=tracking_compass.current_player, limit=1] tp ^ ^ ^1
+                    facing entity @a[tag=tracking_compass.current_player, limit=1] tp ^ ^-0.2 ^0.8
                 }
             }
             tag @s remove tracking_compass.current_player
+            tag @e remove tracking_compass.candidate
         }
     }
     
@@ -73,12 +76,16 @@ function tick_2 {
 }
 
 function tick {
+    as @a[tag=!tracking_compass.has_id] function set_id {
+        set #current_id->tc.data += 1
+        set @s->tc.id = #current_id->tc.data
+        tag @s add tracking_compass.has_id
+    }
+    as @e[type=#tracking_compass:trackable, tag=!tracking_compass.has_id] if data entity @s CustomName function /set_id
+    
+    
     # for every player...
     as @a at @s function player {
-        unless score @s tc.id isset function set_id {
-            set #current_id->tc.data += 1
-            set @s->tc.id = #current_id->tc.data
-        }
         
         # creates a list of compasses
         set tracking_compass:data~Root.compasses = []
@@ -86,7 +93,7 @@ function tick {
         data modify storage tracking_compass:data Root.compasses append from entity @s Inventory[{tag: {tracking_compass: {is_compass: 1b}}}]
         
         # if there's at least 1 compass, loop thru all of them
-        if data storage tracking_compass:data Root.compasses[0].item.tag.tracking_compass.target function update_compasses {
+        if data storage tracking_compass:data Root.compasses[0].tag.tracking_compass.target function update_compasses {
             # searching for players nearby to position a villager so that the player can be interacted with
             
             # setting up the inventory means creating arrays with *all* the items in your inventory, depending on which section of the inventory it is
@@ -120,20 +127,22 @@ function tick {
                 set #id->tc.data = tracking_compass:data~Root.item.tag.tracking_compass.target
                 # sets the dimension of the compass to match its target
                 # TODO: pig
-                as @p if score @s tc.id = #id tc.data function found_tracked {
-                    tag @s add tracking_compass.tracked
-                    # TODO: pig
-                    set tracking_compass:data~Root.item.tag.LodestoneDimension = @s.Dimension
-                }
-                
-                # updates the position the compass points to
-                # TODO: pig
-                as @p[tag=tracking_compass.tracked] function update_position {
+                set #found->tc.data = 0
+                as @e[type=#tracking_compass:trackable] if score @s tc.id = #id tc.data function found_tracked {
+                    set #found->tc.data = 1
+                    at @s set tracking_compass:data~Root.item.tag.LodestoneDimension = @p.Dimension
                     store result storage tracking_compass:data Root.item.tag.LodestonePos.X int 1 data get entity @s Pos[0]
                     store result storage tracking_compass:data Root.item.tag.LodestonePos.Y int 1 data get entity @s Pos[1]
                     store result storage tracking_compass:data Root.item.tag.LodestonePos.Z int 1 data get entity @s Pos[2]
-                    tag @s remove tracking_compass.tracked
                 }
+                
+                function update_lore {
+                    set #lore->tc.data = tracking_compass:data~Root.item.tag.display.Lore
+                    if score #found tc.data matches 0 if score #lore tc.data matches 1 data modify storage tracking_compass:data Root.item.tag.display.Lore append value '{"text": "Target is away", "color": "dark_gray", "italic": false}'
+                    if score #found tc.data matches 1 if score #lore tc.data matches 2.. set tracking_compass:data~Root.item.tag.display.Lore[-1] = null
+                }
+                
+                tag @e remove tracking_compass.tracked
                 
                 # if is in hotbar slots, add item to the hotbar list
                 if score #slot tc.data matches 0..8 data modify storage tracking_compass:data Root.hotbar append from storage tracking_compass:data Root.item
@@ -172,3 +181,5 @@ function tick {
     
     schedule function / 10
 }
+
+tellraw @a [{"text":"\n                                                                          \n","color":"gold","strikethrough":true},{"text":"  Tracking Compass ","color":"green","bold":true,"strikethrough":false,"hoverEvent":{"action":"show_text","contents":[{"text":"by a_soulspark"}]}},{"text":"was loaded successfully","color":"white","strikethrough":false},{"text":"\n                                                                          ","strikethrough":true}]
